@@ -231,11 +231,12 @@ func ParseWithSpecialTableName(dest interface{}, cacheStore *sync.Map, namer Nam
 			field.DBName = namer.ColumnName(schema.Table, field.Name)
 		}
 
+		_, isVirtual := field.TagSettings["VIRTUAL"]
 		bindName := field.BindName()
 		if field.DBName != "" {
 			// nonexistence or shortest path or first appear prioritized if has permission
 			if v, ok := schema.FieldsByDBName[field.DBName]; !ok || ((field.Creatable || field.Updatable || field.Readable) && len(field.BindNames) < len(v.BindNames)) {
-				if _, ok := schema.FieldsByDBName[field.DBName]; !ok {
+				if _, ok := schema.FieldsByDBName[field.DBName]; !ok && !isVirtual {
 					schema.DBNames = append(schema.DBNames, field.DBName)
 				}
 				schema.FieldsByDBName[field.DBName] = field
