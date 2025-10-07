@@ -810,24 +810,58 @@ func (field *Field) setupValuerAndSetter(modelType reflect.Type) {
 			return err
 		}
 	case reflect.String:
-		field.Set = func(ctx context.Context, value reflect.Value, v interface{}) (err error) {
-			switch data := v.(type) {
-			case **string:
-				if data != nil && *data != nil {
-					field.ReflectValueOf(ctx, value).SetString(**data)
+		fieldValue := reflect.New(field.IndirectFieldType)
+		if _, ok := fieldValue.Interface().(sql.Scanner); ok {
+			field.Set = func(ctx context.Context, value reflect.Value, v interface{}) (err error) {
+				reflectV := reflect.ValueOf(v)
+				if !reflectV.IsValid() {
+					field.ReflectValueOf(ctx, value).Set(reflect.New(field.FieldType).Elem())
+				} else if reflectV.Kind() == reflect.Ptr && reflectV.IsNil() {
+					fieldAddr := field.ReflectValueOf(ctx, value).Addr().Interface()
+					if scanner, ok := fieldAddr.(sql.Scanner); ok {
+						err = scanner.Scan(nil)
+					}
+					return
+				} else if reflectV.Type().AssignableTo(field.FieldType) {
+					field.ReflectValueOf(ctx, value).Set(reflectV)
+				} else if reflectV.Kind() == reflect.Ptr {
+					return field.Set(ctx, value, reflectV.Elem().Interface())
+				} else {
+					if valuer, ok := v.(driver.Valuer); ok {
+						v, _ = valuer.Value()
+					}
+
+					if str, ok := v.(string); ok && str == "" {
+						v = nil
+					}
+
+					fieldAddr := field.ReflectValueOf(ctx, value).Addr().Interface()
+					if scanner, ok := fieldAddr.(sql.Scanner); ok {
+						err = scanner.Scan(v)
+					}
 				}
-			case string:
-				field.ReflectValueOf(ctx, value).SetString(data)
-			case []byte:
-				field.ReflectValueOf(ctx, value).SetString(string(data))
-			case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-				field.ReflectValueOf(ctx, value).SetString(utils.ToString(data))
-			case float64, float32:
-				field.ReflectValueOf(ctx, value).SetString(fmt.Sprintf("%."+strconv.Itoa(field.Precision)+"f", data))
-			default:
-				return fallbackSetter(ctx, value, v, field.Set)
+				return
 			}
-			return err
+		} else {
+			field.Set = func(ctx context.Context, value reflect.Value, v interface{}) (err error) {
+				switch data := v.(type) {
+				case **string:
+					if data != nil && *data != nil {
+						field.ReflectValueOf(ctx, value).SetString(**data)
+					}
+				case string:
+					field.ReflectValueOf(ctx, value).SetString(data)
+				case []byte:
+					field.ReflectValueOf(ctx, value).SetString(string(data))
+				case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+					field.ReflectValueOf(ctx, value).SetString(utils.ToString(data))
+				case float64, float32:
+					field.ReflectValueOf(ctx, value).SetString(fmt.Sprintf("%."+strconv.Itoa(field.Precision)+"f", data))
+				default:
+					return fallbackSetter(ctx, value, v, field.Set)
+				}
+				return err
+			}
 		}
 	default:
 		fieldValue := reflect.New(field.FieldType)
