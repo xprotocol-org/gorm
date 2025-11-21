@@ -67,6 +67,9 @@ type Store interface {
 	// Parameters:
 	//   key: The key associated with the Stmt object to be deleted.
 	Delete(key string)
+
+	// Close closes the store and releases any resources.
+	Close()
 }
 
 // defaultMaxSize defines the default maximum capacity of the cache.
@@ -134,6 +137,11 @@ func (s *lruStore) Set(key string, value *Stmt) {
 
 func (s *lruStore) Delete(key string) {
 	s.lru.Remove(key)
+}
+
+func (s *lruStore) Close() {
+	s.lru.Purge()
+	s.lru.Close()
 }
 
 type ConnPool interface {

@@ -290,16 +290,17 @@ func (c *LRU[K, V]) Resize(size int) (evicted int) {
 }
 
 // Close destroys cleanup goroutine. To clean up the cache, run Purge() before Close().
-// func (c *LRU[K, V]) Close() {
-//	c.mu.Lock()
-//	defer c.mu.Unlock()
-//	select {
-//	case <-c.done:
-//		return
-//	default:
-//	}
-//	close(c.done)
-// }
+func (c *LRU[K, V]) Close() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	select {
+	case <-c.done:
+		return
+	default:
+	}
+	close(c.done)
+}
 
 // removeOldest removes the oldest item from the cache. Has to be called with lock!
 func (c *LRU[K, V]) removeOldest() {

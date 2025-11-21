@@ -56,6 +56,7 @@ func (db *PreparedStmtDB) Close() {
 	for _, key := range db.Stmts.Keys() {
 		db.Stmts.Delete(key)
 	}
+	db.Stmts.Close()
 }
 
 // Reset Deprecated use Close instead
